@@ -1,12 +1,32 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include "sample.h"   // generated with xxd -i
+#include "wav_header.h"
+#include <SPI.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+#include "ESP_I2S.h"
+#define BUTTON_PIN 0
+#define LED_PIN 3
+#define SAMPLE_RATE     (4000) // The sample rate is tested with OpenAI and selected. 
+#define DATA_PIN        (GPIO_NUM_39)
+#define CLOCK_PIN       (GPIO_NUM_38)
+
+//For I2S_audio
+I2SClass I2S;
+bool isRecording = false; 
+uint8_t *wavBuffer = NULL;
+size_t wavBufferSize = 0; 
 
 // Replace with your credentials
 const char* ssid = "Test";
 const char* password = "Test123@";
 String openaiKey = "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";
 
+ String result;
+
+#ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
 const char* root_ca = \
 "-----BEGIN CERTIFICATE-----\n"
@@ -39,9 +59,14 @@ const char* root_ca = \
 "2XtsYUrpMhuJB+HtjCgLe3H8/3KwVjFuS7Qn2V/gP0m3C5ZPQ66n8B2CNkeJq8Jp\n"
 "TAxJ/dfAyNqFu8lfFWsByLbnL9XVrWYaM3CeYs+m\n"
 "-----END CERTIFICATE-----\n";
+#endif
 
 void setup() {
   Serial.begin(115200);
+    pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  audioInit();
+
   WiFi.begin(ssid, password);
 
   Serial.print("Connecting to WiFi");
@@ -51,16 +76,141 @@ void setup() {
   }
   Serial.println("\nWiFi connected");
 
-  String result = openAI_transcribe();
-  Serial.println("=== OpenAI Response ===");
-  Serial.println(result);
+  //  result = openAI_transcribe((uint8_t *)sample_wav, sample_wav_len);
+  // Serial.println("=== OpenAI Response ===");
+  // Serial.println(result);
+}
+
+void audioInit()
+{
+  I2S.setPinsPdmRx(CLOCK_PIN, DATA_PIN);
+  if (!I2S.begin(I2S_MODE_PDM_RX, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("Failed to initialize I2S PDM RX");
+  }
 }
 
 void loop() {
-  // nothing
+    if (digitalRead(BUTTON_PIN) == LOW) {
+        if (!isRecording) {
+          digitalWrite(LED_PIN, HIGH);
+            startRecording();
+        }
+    } else {
+        if (isRecording) {
+                    digitalWrite(LED_PIN, LOW);
+            stopRecording();
+        }
+    }
+    if (isRecording) {
+        size_t bytesAvailable = I2S.available();
+        if (bytesAvailable > 0) {
+            uint8_t *newBuffer = (uint8_t *)realloc(wavBuffer, wavBufferSize + bytesAvailable);
+            if (newBuffer == NULL) {
+                log_e("Failed to reallocate WAV buffer");
+                stopRecording();
+                return;
+            }
+            wavBuffer = newBuffer;
+
+            size_t bytesRead = I2S.readBytes((char *)(wavBuffer + wavBufferSize), bytesAvailable);
+            wavBufferSize += bytesRead;
+        }
+    }
+
+    delay(10); 
+    }
+
+    void startRecording() {
+    size_t sampleRate = I2S.rxSampleRate();
+    uint16_t sampleWidth = (uint16_t)I2S.rxDataWidth();
+    uint16_t numChannels = (uint16_t)I2S.rxSlotMode();
+
+    wavBufferSize = 0;
+    wavBuffer = (uint8_t *)malloc(PCM_WAV_HEADER_SIZE);
+    if (wavBuffer == NULL) {
+        log_e("Failed to allocate WAV buffer");
+        return;
+    }
+
+    const pcm_wav_header_t wavHeader = PCM_WAV_HEADER_DEFAULT(0, sampleWidth, sampleRate, numChannels);
+    memcpy(wavBuffer, &wavHeader, PCM_WAV_HEADER_SIZE);
+    wavBufferSize = PCM_WAV_HEADER_SIZE;
+
+    Serial.println("Start recording...");
+    isRecording = true;
 }
 
-String openAI_transcribe() {
+void stopRecording() {
+    if (!isRecording) return;
+
+    isRecording = false;
+    
+    Serial.printf("Stop recording. Total recorded size: %u\n", wavBufferSize);
+    // Serial.println("audio_data_start : ");
+    // for(int i = 0; i < wavBufferSize; i ++)
+    // {
+    //   Serial.print("0x");
+    //   Serial.print(*(wavBuffer + i), HEX);
+    //   Serial.print(", ");
+    //   if(i != 0)
+    //   {
+    //   if((i % 20) == 0)
+    //   {
+    //     Serial.println();
+    //   }
+    //   }
+    // }
+    // Serial.println();
+
+    pcm_wav_header_t *header = (pcm_wav_header_t *)wavBuffer;
+    header->descriptor_chunk.chunk_size =  (wavBufferSize) + sizeof(pcm_wav_header_t) - 8;
+    header->data_chunk.subchunk_size = wavBufferSize - PCM_WAV_HEADER_SIZE;
+
+    Serial.println("Start speech to text! ");
+    //For Testing
+    // wavBuffer = (uint8_t *)sample_wav;
+    // wavBufferSize = 7724;
+    //     Serial.println("audio_data_start : ");
+    // for(int i = 0; i < 50; i ++)
+    // {
+    //   Serial.print("0x");
+    //   Serial.print(*(wavBuffer + i), HEX);
+    //   Serial.print(", ");
+    //   if(i != 0)
+    //   {
+    //   if((i % 20) == 0)
+    //   {
+    //     Serial.println();
+    //   }
+    //   }
+    // }
+    // Serial.println();
+
+  String txt = openAI_transcribe(wavBuffer, wavBufferSize);
+  Serial.println("=== OpenAI Response ===");
+  Serial.println(txt);
+  // parse_response(txt);
+
+    // free(wavBuffer);
+    // if(txt!=NULL){
+    //     Serial.printf("SpeechToText Message:\n%s\n", txt.c_str());
+    //     Serial.println("Start image Answering! ");
+    //     txt=imageAnswering(txt);
+    //     if(txt!=NULL){
+    //       Serial.printf("imageAnswering Message:\n%s\n", txt.c_str());
+    //       Serial.println("Start text to audio! ");
+    //       if(TextToSpeech(txt)==-1){
+    //         Serial.println("Audio reception failed! ");
+    //       }
+    //     }else{
+    //       Serial.println("imageAnswering failed!");
+    //     }
+    // }else{
+    //   Serial.println("speech to text failed!");
+    // }
+}
+
+String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
   WiFiClientSecure client;
 
   // Use insecure for testing (replace later with proper root CA)
@@ -83,7 +233,7 @@ String openAI_transcribe() {
     "Content-Type: audio/wav\r\n\r\n";
 
   String bodyEnd = "\r\n--" + boundary + "--\r\n";
-  int contentLength = bodyStart.length() + sample_wav_len + bodyEnd.length();
+  int contentLength = bodyStart.length() + audio_len + bodyEnd.length();
 
   // ---- HTTP request ----
   client.println("POST /v1/audio/transcriptions HTTP/1.1");
@@ -96,7 +246,7 @@ String openAI_transcribe() {
 
   // ---- Write body ----
   client.print(bodyStart);
-  client.write(sample_wav, sample_wav_len);  // binary audio
+  client.write(audio_data, audio_len);  // binary audio
   client.print(bodyEnd);
 
   // ---- Read response ----
@@ -111,8 +261,34 @@ String openAI_transcribe() {
       break;
     }
   }
+  Serial.println("exiting audio transcription");
 
   client.stop();
   return response;
 }
+#ifdef to_be_done_later
+String parse_response(String input)
+{
+  int index_val = input.indexOf("\"text\"");
+  // String text_value = input.substring()
+  const char *json_value;
+  json_value = input.c_str();
+  String transcripted_text = "";
+  for(int i = (index_val + 8); i <= 100; i ++)
+  {
+    if(json_value[i] != '"')
+    {
+    transcripted_text += String(json_value[i]);
+    }
+    else
+    {
+      break;
+    }
+
+  }
+  Serial.print("Transcripted_text : ");
+  Serial.println(transcripted_text);
+
+}
+#endif
 
