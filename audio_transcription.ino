@@ -13,6 +13,8 @@
 #define DATA_PIN        (GPIO_NUM_39)
 #define CLOCK_PIN       (GPIO_NUM_38)
 
+//Other IMP MACROS
+#define SERVER_RESP_TIMEOUT_MS 40000 
 //For I2S_audio
 I2SClass I2S;
 bool isRecording = false; 
@@ -23,8 +25,9 @@ size_t wavBufferSize = 0;
 const char* ssid = "Test";
 const char* password = "Test123@";
 String openaiKey = "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";
-
- String result;
+int num_of_audio_iterations = 0;
+int remaining_audio_len = 0;
+String result;
 
 #ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
@@ -213,7 +216,24 @@ void stopRecording() {
 String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
   WiFiClientSecure client;
 
+  //Compute the variables to send audio data
+  if(audio_len >= 15500)
+  {
+    num_of_audio_iterations = (audio_len / 15500);
+    if((audio_len % 15500) != 0)
+    {
+      remaining_audio_len = (audio_len % 15500);
+    }
+  }
+  else
+  {
+    num_of_audio_iterations = 0;
+    remaining_audio_len = 0;
+  }
+
+  
   // Use insecure for testing (replace later with proper root CA)
+  
   client.setInsecure();
   //  client.setCACert(root_ca);  // ✅ use real certificate
 
@@ -246,7 +266,24 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
 
   // ---- Write body ----
   client.print(bodyStart);
+  if(num_of_audio_iterations > 0)
+  {
+    for(int i = 0; i < num_of_audio_iterations; i ++)
+    {
+      client.write((audio_data + (i * 15500)), 15500);
+      delay(100);
+    }
+
+    if(remaining_audio_len > 0)
+    {
+      client.write((audio_data + (num_of_audio_iterations * 15500)), remaining_audio_len);
+    }
+
+  }
+  else
+  {
   client.write(audio_data, audio_len);  // binary audio
+  }
   client.print(bodyEnd);
 
   // ---- Read response ----
@@ -257,7 +294,7 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
       response += client.readStringUntil('\n');
       timeout = millis(); // reset watchdog
     }
-    if (millis() - timeout > 30000) {  // 10s timeout
+    if (millis() - timeout > SERVER_RESP_TIMEOUT_MS) {  // 10s timeout
       break;
     }
   }
