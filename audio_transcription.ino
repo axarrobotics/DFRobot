@@ -38,46 +38,46 @@ String result;
 String audio_transcripted_txt;
 String image_answer_txt;
 
-#ifdef test
+// #ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
-const char* root_ca = \
-"-----BEGIN CERTIFICATE-----\n"
-"MIIFazCCA1OgAwIBAgISA6UjtpRwaP1pY9lKGVt7lU5RMA0GCSqGSIb3DQEBCwUA\n"
-"MEoxCzAJBgNVBAYTAlVTMRMwEQYDVQQKDApMZXQncyBFbmNyeXB0MSMwIQYDVQQD\n"
-"DBpMZXQncyBFbmNyeXB0IFJvb3QgQ0EgWDEwHhcNMjAwNDE1MDAwMDAwWhcNMjMw\n"
-"NTExMTIwMDAwWjA6MQswCQYDVQQGEwJVUzETMBEGA1UECgwKTGV0J3MgRW5jcnlw\n"
-"dDEjMCEGA1UEAwwaTGV0J3MgRW5jcnlwdCBSb290IENBIFgxMIIBIjANBgkqhkiG\n"
-"9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzNPdF2dAhtqgWpyfcU5q5o8rZg1aI5WJxks/\n"
-"3u7QzTz1U5WZty4LYtL3zM3vG+6ZChqPOeTyy0MMHQhdGjw6a5zXgtrZD2jE3j9t\n"
-"H+Q6h/4gkXWm+dc6ZgIGpTuH/uhV7KaKnWXexsb6LSSUnk1wUFV0UodWIaUgVRa3\n"
-"nsi2MJl2UuQMSiYq8rrfNIThO3WAnV4Tp5z5vI3oLShM2ZkH01CM4Dk5W7vY6D0T\n"
-"mkr1+8PIFzH5o2h3iFz6yC0+9F7GeyXKaqcrX8iFMSmI5PgZsQCKA+J4sF+PP7oM\n"
-"6e3hUjBfGfRKnQ60r1lWB3yZlIUV73pR/3nGMyGH0z3gH4S4RwIDAQABo4ICZzCC\n"
-"AmMwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcD\n"
-"AjAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSoSmpjBH3DU7g79IYz1n34RBduvjAf\n"
-"BgNVHSMEGDAWgBQULrMXt1hWy65QCUDmH6+dixTCxjA4BggrBgEFBQcBAQIwMC4G\n"
-"CCsGAQUFBzABhiJodHRwOi8vb2NzcC5pbnQtbGV0c2VuY3J5cHQub3JnMIIBAwYI\n"
-"KwYBBQUHAQsEgfowgfcwKwYIKwYBBQUHMAGGH2h0dHA6Ly9vY3NwLmludC1sZXRz\n"
-"ZW5jcnlwdC5vcmcwNQYIKwYBBQUHMAKGKWh0dHA6Ly9jZXJ0LmNhY2VydC5vcmcv\n"
-"bGV0c2VuY3J5cHQucm9vdHgubmV3LmNydDA/BggrBgEFBQcwAoYzaHR0cDovL2Nh\n"
-"Y2VydC5pbnQtbGV0c2VuY3J5cHQub3JnL2xldHNlbmNyeXB0LXJvb3QueDEuY2Vy\n"
-"MEUGA1UdIAQ+MDwwOgYEVR0gADAyMDAGCCsGAQUFBwIBFiRodHRwczovL2xldHNl\n"
-"bmNyeXB0Lm9yZy9yZXBvc2l0b3J5LzA8BgNVHR8ENTAzMDGgL6AthitodHRwOi8v\n"
-"Y3JsLmludC1sZXRzZW5jcnlwdC5vcmcvbGV0c2VuY3J5cHQtcjEuY3JsMA0GCSqG\n"
-"SIb3DQEBCwUAA4IBAQAfjYONglz8q6SyQHhX+3vSeKywvwwUMN5D0ZDKkuEv/Lnl\n"
-"AJZZHYhHBGQFHoJ0L3hPiS14WraUQchSUg36Xx2DJBgPKZW/zRLvcmjO2VXfDgeU\n"
-"90PY9l00ZVY0Dw+dYr4fZb+mT0hxQY11rIHTU6IY6PkUvPoUVeKq8YGHeA8lHk5Q\n"
-"ZGc7ISZdkV73Xx/KuD3W9tA1XkxTY6EfdM4DNXVutYPzmzMkmJ8th6Ep+bI7AN0V\n"
-"2XtsYUrpMhuJB+HtjCgLe3H8/3KwVjFuS7Qn2V/gP0m3C5ZPQ66n8B2CNkeJq8Jp\n"
-"TAxJ/dfAyNqFu8lfFWsByLbnL9XVrWYaM3CeYs+m\n"
-"-----END CERTIFICATE-----\n";
-#endif
+// const char* root_ca = \
+// "-----BEGIN CERTIFICATE-----\n"
+// "MIIFazCCA1OgAwIBAgISA6UjtpRwaP1pY9lKGVt7lU5RMA0GCSqGSIb3DQEBCwUA\n"
+// "MEoxCzAJBgNVBAYTAlVTMRMwEQYDVQQKDApMZXQncyBFbmNyeXB0MSMwIQYDVQQD\n"
+// "DBpMZXQncyBFbmNyeXB0IFJvb3QgQ0EgWDEwHhcNMjAwNDE1MDAwMDAwWhcNMjMw\n"
+// "NTExMTIwMDAwWjA6MQswCQYDVQQGEwJVUzETMBEGA1UECgwKTGV0J3MgRW5jcnlw\n"
+// "dDEjMCEGA1UEAwwaTGV0J3MgRW5jcnlwdCBSb290IENBIFgxMIIBIjANBgkqhkiG\n"
+// "9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzNPdF2dAhtqgWpyfcU5q5o8rZg1aI5WJxks/\n"
+// "3u7QzTz1U5WZty4LYtL3zM3vG+6ZChqPOeTyy0MMHQhdGjw6a5zXgtrZD2jE3j9t\n"
+// "H+Q6h/4gkXWm+dc6ZgIGpTuH/uhV7KaKnWXexsb6LSSUnk1wUFV0UodWIaUgVRa3\n"
+// "nsi2MJl2UuQMSiYq8rrfNIThO3WAnV4Tp5z5vI3oLShM2ZkH01CM4Dk5W7vY6D0T\n"
+// "mkr1+8PIFzH5o2h3iFz6yC0+9F7GeyXKaqcrX8iFMSmI5PgZsQCKA+J4sF+PP7oM\n"
+// "6e3hUjBfGfRKnQ60r1lWB3yZlIUV73pR/3nGMyGH0z3gH4S4RwIDAQABo4ICZzCC\n"
+// "AmMwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcD\n"
+// "AjAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSoSmpjBH3DU7g79IYz1n34RBduvjAf\n"
+// "BgNVHSMEGDAWgBQULrMXt1hWy65QCUDmH6+dixTCxjA4BggrBgEFBQcBAQIwMC4G\n"
+// "CCsGAQUFBzABhiJodHRwOi8vb2NzcC5pbnQtbGV0c2VuY3J5cHQub3JnMIIBAwYI\n"
+// "KwYBBQUHAQsEgfowgfcwKwYIKwYBBQUHMAGGH2h0dHA6Ly9vY3NwLmludC1sZXRz\n"
+// "ZW5jcnlwdC5vcmcwNQYIKwYBBQUHMAKGKWh0dHA6Ly9jZXJ0LmNhY2VydC5vcmcv\n"
+// "bGV0c2VuY3J5cHQucm9vdHgubmV3LmNydDA/BggrBgEFBQcwAoYzaHR0cDovL2Nh\n"
+// "Y2VydC5pbnQtbGV0c2VuY3J5cHQub3JnL2xldHNlbmNyeXB0LXJvb3QueDEuY2Vy\n"
+// "MEUGA1UdIAQ+MDwwOgYEVR0gADAyMDAGCCsGAQUFBwIBFiRodHRwczovL2xldHNl\n"
+// "bmNyeXB0Lm9yZy9yZXBvc2l0b3J5LzA8BgNVHR8ENTAzMDGgL6AthitodHRwOi8v\n"
+// "Y3JsLmludC1sZXRzZW5jcnlwdC5vcmcvbGV0c2VuY3J5cHQtcjEuY3JsMA0GCSqG\n"
+// "SIb3DQEBCwUAA4IBAQAfjYONglz8q6SyQHhX+3vSeKywvwwUMN5D0ZDKkuEv/Lnl\n"
+// "AJZZHYhHBGQFHoJ0L3hPiS14WraUQchSUg36Xx2DJBgPKZW/zRLvcmjO2VXfDgeU\n"
+// "90PY9l00ZVY0Dw+dYr4fZb+mT0hxQY11rIHTU6IY6PkUvPoUVeKq8YGHeA8lHk5Q\n"
+// "ZGc7ISZdkV73Xx/KuD3W9tA1XkxTY6EfdM4DNXVutYPzmzMkmJ8th6Ep+bI7AN0V\n"
+// "2XtsYUrpMhuJB+HtjCgLe3H8/3KwVjFuS7Qn2V/gP0m3C5ZPQ66n8B2CNkeJq8Jp\n"
+// "TAxJ/dfAyNqFu8lfFWsByLbnL9XVrWYaM3CeYs+m\n"
+// "-----END CERTIFICATE-----\n";
+// #endif
 
 void setup() {
   Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  // audioInit();
+  audioInit();
   initCamera();
   WiFi.begin(ssid, password);
 
@@ -88,7 +88,7 @@ void setup() {
   }
   Serial.println("\nWiFi connected");
   
-  imageAnswering("hello there\n");
+  // imageAnswering("Describe this image for me");
   //  result = openAI_transcribe((uint8_t *)sample_wav, sample_wav_len);
   // Serial.println("=== OpenAI Response ===");
   // Serial.println(result);
@@ -153,6 +153,48 @@ void loop() {
     isRecording = true;
 }
 
+String parse_response_for_audio(String txt)
+{
+    const char* resp = txt.c_str();
+   char *resp1 = strstr(resp, "\"text\":");
+
+   for(int i = 8; i <= 100; i ++)
+   {
+    if(*(resp1 + i) != '"')
+    {
+      audio_transcripted_txt += String(*(resp1 + i));
+    }
+    else
+    {
+      break;
+    }
+   }
+
+   return audio_transcripted_txt;
+
+}
+
+String parse_response_for_image(String txt)
+{
+      const char* resp = txt.c_str();
+   char *resp1 = strstr(resp, "\"content\":");
+
+   for(int i = 12; i <= 500; i ++)
+   {
+    if(*(resp1 + i) != '"')
+    {
+      image_answer_txt += String(*(resp1 + i));
+    }
+    else
+    {
+      break;
+    }
+   }
+
+   return image_answer_txt;
+
+}
+
 void stopRecording() {
     if (!isRecording) return;
 
@@ -200,27 +242,34 @@ void stopRecording() {
     // Serial.println();
 
   String txt = openAI_transcribe(wavBuffer, wavBufferSize);
-  Serial.println("=== OpenAI Response ===");
-  Serial.println(txt);
+  // Serial.println("=== OpenAI Response ===");
+  // Serial.println(txt);
+  // delay(1000);
   // parse_response(txt);
 
-    // free(wavBuffer);
-    // if(txt!=NULL){
-    //     Serial.printf("SpeechToText Message:\n%s\n", txt.c_str());
-    //     Serial.println("Start image Answering! ");
-    //     txt=imageAnswering(txt);
-    //     if(txt!=NULL){
-    //       Serial.printf("imageAnswering Message:\n%s\n", txt.c_str());
-    //       Serial.println("Start text to audio! ");
-    //       if(TextToSpeech(txt)==-1){
-    //         Serial.println("Audio reception failed! ");
-    //       }
-    //     }else{
-    //       Serial.println("imageAnswering failed!");
-    //     }
-    // }else{
-    //   Serial.println("speech to text failed!");
-    // }
+    free(wavBuffer);
+    if(txt!="Connection failed" || txt!=""){
+        audio_transcripted_txt = parse_response_for_audio(txt);
+        Serial.printf("SpeechToText Message: %s\n", audio_transcripted_txt.c_str());
+        Serial.println("Start image Answering! ");
+        txt=imageAnswering(audio_transcripted_txt);
+        audio_transcripted_txt = "";
+        if(txt!=""){
+          // Serial.printf("imageAnswering Message:\n%s\n", txt.c_str());
+          image_answer_txt = parse_response_for_image(txt);
+          Serial.print("imageAnswering Message: ");
+          Serial.println(image_answer_txt);
+          // Serial.println("Start text to audio! ");
+          // if(TextToSpeech(txt)==-1){
+          //   Serial.println("Audio reception failed! ");
+          // }
+          image_answer_txt = "";
+        }else{
+          Serial.println("imageAnswering failed!");
+        }
+    }else{
+      Serial.println("speech to text failed!");
+    }
 }
 
 String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
@@ -249,7 +298,7 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
 
   Serial.println("Connecting to api.openai.com ...");
   if (!client.connect("api.openai.com", 443)) {
-    return "❌ Connection failed";
+    return "Connection failed";
   }
   Serial.println("Connected!");
 
@@ -297,7 +346,7 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
   client.print(bodyEnd);
 
   // ---- Read response ----
-  String response;
+  String response = "";
   unsigned long timeout = millis();
   while (client.connected() || client.available()) {
     if (client.available()) {
@@ -311,6 +360,10 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
   Serial.println("exiting audio transcription");
 
   client.stop();
+  // if(response == NULL)
+  // {
+  //   return "";
+  // }
   return response;
 }
 
@@ -332,7 +385,7 @@ String imageAnswering(String txt) {
   Serial.print("Length of the image data: ");
   Serial.println(fb->len); 
 
-  transmit_chat_and_image(txt, fb->buf, fb->len);
+  response = transmit_chat_and_image(txt, fb->buf, fb->len);
 
   // Release frame buffer AFTER you're done with it
   esp_camera_fb_return(fb);
@@ -388,7 +441,7 @@ String transmit_chat_and_image(String txt, uint8_t *image_data, long unsigned in
   // Text content
   cJSON *textContent = cJSON_CreateObject();
   cJSON_AddStringToObject(textContent, "type", "text");
-  cJSON_AddStringToObject(textContent, "text", "Please describe this picture.");
+  cJSON_AddStringToObject(textContent, "text", txt.c_str());
   cJSON_AddItemToArray(contentArray, textContent);
 
   // Image content
@@ -407,10 +460,10 @@ String transmit_chat_and_image(String txt, uint8_t *image_data, long unsigned in
   char *jsonString = cJSON_Print(root);
 
   // free(jsonString);
-  Serial.println("Request JSON:");
-  Serial.println(jsonString);
-  Serial.print("JSON Size : ");
-  Serial.println(strlen(jsonString));
+  // Serial.println("Request JSON:");
+  // Serial.println(jsonString);
+  // Serial.print("JSON Size : ");
+  // Serial.println(strlen(jsonString));
   // int image_string_len = strlen(jsonString);
     //Compute the variables to send image data
   // if(image_string_len >= 2000)
@@ -503,8 +556,9 @@ String transmit_chat_and_image(String txt, uint8_t *image_data, long unsigned in
     log_e("HTTP_ERROR: %d", httpCode);
   }else{
     response = http.getString();
-    Serial.print("HTTP RESPONSE : ");
-    Serial.println(response);
+    Serial.println("HTTP REQ SUCCESSFUL");
+    // Serial.print("HTTP RESPONSE : ");
+    // Serial.println(response);
   }
   //
   http.end();
