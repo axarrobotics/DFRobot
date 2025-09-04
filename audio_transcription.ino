@@ -38,6 +38,8 @@ String result;
 String audio_transcripted_txt;
 String image_answer_txt;
 
+  uint8_t buffer[50000]; 
+
 // #ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
 // const char* root_ca = \
@@ -259,10 +261,10 @@ void stopRecording() {
           image_answer_txt = parse_response_for_image(txt);
           Serial.print("imageAnswering Message: ");
           Serial.println(image_answer_txt);
-          // Serial.println("Start text to audio! ");
-          // if(TextToSpeech(txt)==-1){
-          //   Serial.println("Audio reception failed! ");
-          // }
+          Serial.println("Start text to audio! ");
+          if(TextToSpeech(image_answer_txt)==-1){
+            Serial.println("Audio reception failed! ");
+          }
           image_answer_txt = "";
         }else{
           Serial.println("imageAnswering failed!");
@@ -270,6 +272,83 @@ void stopRecording() {
     }else{
       Serial.println("speech to text failed!");
     }
+}
+
+int TextToSpeech(String input_text)
+{
+  //Create JSON Object
+    cJSON *message = cJSON_CreateObject();
+  if (!message) { 
+    Serial.println("JSON Creation failed");
+    return 0;
+  }
+    cJSON_AddStringToObject(message, "model", "tts-1");
+  cJSON_AddStringToObject(message, "voice", "alloy");
+  cJSON_AddStringToObject(message, "input", input_text.c_str());
+  cJSON_AddStringToObject(message, "response_format", "wav");
+  String jsonBody = String(cJSON_Print(message));
+
+
+  I2SClass i2s;
+  i2s.setPins(45, 46, 42);
+  if (!i2s.begin(I2S_MODE_STD, 24000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("MAX98357 initialization failed!");
+  }
+
+  HTTPClient http;
+  http.setTimeout(60000);
+  http.useHTTP10(true);
+  http.begin("https://api.openai.com/v1/" + String("audio/speech"));
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + openaiKey);
+
+  int httpCode = http.POST(jsonBody);
+
+  int totalBytesRead = -1; 
+   if (httpCode != HTTP_CODE_OK) {
+      log_e("HTTP_ERROR: %d", httpCode);
+  } else {
+      WiFiClient* stream = http.getStreamPtr();
+      int tempTime = 0;
+
+      memset(buffer, 0, sizeof(buffer));
+      while (http.connected()) {
+          size_t tempSize = stream->available();
+          static int i=0;
+          if (tempSize) {
+              tempTime = 0; 
+              size_t bytesToRead = std::min(tempSize, sizeof(buffer)); 
+              size_t bytesRead = stream->read(buffer, bytesToRead);
+              if(bytesRead>0){
+                if(i==0){
+                  i++;
+                  pcm_wav_header_t *header = (pcm_wav_header_t *)buffer;
+                  if (header->fmt_chunk.audio_format != 1) {
+                    log_e("Audio format is not PCM!");
+                    http.end();
+                    return -1;
+                  }
+                  i2s.configureTX(header->fmt_chunk.sample_rate, (i2s_data_bit_width_t)header->fmt_chunk.bits_per_sample, (i2s_slot_mode_t)header->fmt_chunk.num_of_channels);
+                  i2s.write(buffer+44, bytesRead-44);
+                }else{
+                  i2s.write(buffer,bytesRead);
+                }
+              }
+              totalBytesRead += bytesRead; // 更新已读取的字节数
+          } else {
+              tempTime++;
+              if (tempTime > 2500) { // 超时处理 
+                  break;
+              }
+          }
+          delay(1);
+      }
+  }
+
+  http.end();
+  Serial.print("Text to audio conversion done. Total bytes read : ");
+  Serial.println(totalBytesRead);
+  return totalBytesRead;
 }
 
 String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
