@@ -38,7 +38,7 @@ String result;
 String audio_transcripted_txt;
 String image_answer_txt;
 
-  uint8_t buffer[50000]; 
+  // uint8_t buffer[50000]; 
 
 // #ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
@@ -203,51 +203,14 @@ void stopRecording() {
     isRecording = false;
     
     Serial.printf("Stop recording. Total recorded size: %u\n", wavBufferSize);
-    // Serial.println("audio_data_start : ");
-    // for(int i = 0; i < wavBufferSize; i ++)
-    // {
-    //   Serial.print("0x");
-    //   Serial.print(*(wavBuffer + i), HEX);
-    //   Serial.print(", ");
-    //   if(i != 0)
-    //   {
-    //   if((i % 20) == 0)
-    //   {
-    //     Serial.println();
-    //   }
-    //   }
-    // }
-    // Serial.println();
 
     pcm_wav_header_t *header = (pcm_wav_header_t *)wavBuffer;
     header->descriptor_chunk.chunk_size =  (wavBufferSize) + sizeof(pcm_wav_header_t) - 8;
     header->data_chunk.subchunk_size = wavBufferSize - PCM_WAV_HEADER_SIZE;
 
     Serial.println("Start speech to text! ");
-    //For Testing
-    // wavBuffer = (uint8_t *)sample_wav;
-    // wavBufferSize = 7724;
-    //     Serial.println("audio_data_start : ");
-    // for(int i = 0; i < 50; i ++)
-    // {
-    //   Serial.print("0x");
-    //   Serial.print(*(wavBuffer + i), HEX);
-    //   Serial.print(", ");
-    //   if(i != 0)
-    //   {
-    //   if((i % 20) == 0)
-    //   {
-    //     Serial.println();
-    //   }
-    //   }
-    // }
-    // Serial.println();
-
+ 
   String txt = openAI_transcribe(wavBuffer, wavBufferSize);
-  // Serial.println("=== OpenAI Response ===");
-  // Serial.println(txt);
-  // delay(1000);
-  // parse_response(txt);
 
     free(wavBuffer);
     if(txt!="Connection failed" || txt!=""){
@@ -311,10 +274,11 @@ int TextToSpeech(String input_text)
       WiFiClient* stream = http.getStreamPtr();
       int tempTime = 0;
 
-      memset(buffer, 0, sizeof(buffer));
+      // memset(buffer, 0, sizeof(buffer));
       while (http.connected()) {
           size_t tempSize = stream->available();
           static int i=0;
+          uint8_t buffer[1024];
           if (tempSize) {
               tempTime = 0; 
               size_t bytesToRead = std::min(tempSize, sizeof(buffer)); 
