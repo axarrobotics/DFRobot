@@ -1,18 +1,23 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include "sample.h"   // generated with xxd -i
 #include "wav_header.h"
+#include "camera.h"
 #include <SPI.h>
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
 #include "ESP_I2S.h"
+#include "cJSON.h"
+#include <base64.h>
 #define BUTTON_PIN 0
 #define LED_PIN 3
 #define SAMPLE_RATE     (4000) // The sample rate is tested with OpenAI and selected. 
 #define DATA_PIN        (GPIO_NUM_39)
 #define CLOCK_PIN       (GPIO_NUM_38)
 
+base64 base64_conv;
 //Other IMP MACROS
 #define SERVER_RESP_TIMEOUT_MS 40000 
 //For I2S_audio
@@ -27,7 +32,11 @@ const char* password = "Test123@";
 String openaiKey = "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";
 int num_of_audio_iterations = 0;
 int remaining_audio_len = 0;
+// int num_of_image_iterations = 0;
+// int remaining_image_len = 0;
 String result;
+String audio_transcripted_txt;
+String image_answer_txt;
 
 #ifdef test
 // ISRG Root X1 certificate (valid for api.openai.com)
@@ -68,8 +77,8 @@ void setup() {
   Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  audioInit();
-
+  // audioInit();
+  initCamera();
   WiFi.begin(ssid, password);
 
   Serial.print("Connecting to WiFi");
@@ -78,7 +87,8 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nWiFi connected");
-
+  
+  imageAnswering("hello there\n");
   //  result = openAI_transcribe((uint8_t *)sample_wav, sample_wav_len);
   // Serial.println("=== OpenAI Response ===");
   // Serial.println(result);
@@ -231,7 +241,7 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
     remaining_audio_len = 0;
   }
 
-  
+
   // Use insecure for testing (replace later with proper root CA)
   
   client.setInsecure();
@@ -303,6 +313,207 @@ String openAI_transcribe(uint8_t *audio_data, uint32_t audio_len) {
   client.stop();
   return response;
 }
+
+String imageAnswering(String txt) {
+  camera_fb_t *fb = NULL; 
+  String response;
+
+  // Capture picture
+  fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("Camera capture failed!");
+    return "Camera capture failed";
+  }
+
+  Serial.println("Capturing image...");
+  delay(5);
+
+  Serial.println("Sending image to OpenAI");
+  Serial.print("Length of the image data: ");
+  Serial.println(fb->len); 
+
+  transmit_chat_and_image(txt, fb->buf, fb->len);
+
+  // Release frame buffer AFTER you're done with it
+  esp_camera_fb_return(fb);
+
+  return response;
+}
+
+/*
+text with Image stucture:
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "content"
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,{image}"
+          }
+        }
+      ]
+    }
+*/
+String transmit_chat_and_image(String txt, uint8_t *image_data, long unsigned int imageLength)
+{
+  // Calculate Base64 length
+    String image_data_str = base64_conv.encode(image_data, imageLength);
+
+    WiFiClientSecure client;
+    String endpoint = "chat/completions";
+
+  // Create root JSON object
+  cJSON *root = cJSON_CreateObject();
+  // Add model
+  cJSON_AddStringToObject(root, "model", "gpt-4o-mini");
+
+  // Create messages array
+  cJSON *messages = cJSON_CreateArray();
+  cJSON_AddItemToObject(root, "messages", messages);
+
+  // First message object
+  cJSON *message = cJSON_CreateObject();
+  cJSON_AddItemToArray(messages, message);
+
+  cJSON_AddStringToObject(message, "role", "user");
+
+  // content array
+  cJSON *contentArray = cJSON_CreateArray();
+  cJSON_AddItemToObject(message, "content", contentArray);
+
+  // Text content
+  cJSON *textContent = cJSON_CreateObject();
+  cJSON_AddStringToObject(textContent, "type", "text");
+  cJSON_AddStringToObject(textContent, "text", "Please describe this picture.");
+  cJSON_AddItemToArray(contentArray, textContent);
+
+  // Image content
+  cJSON *imageContent = cJSON_CreateObject();
+  cJSON_AddStringToObject(imageContent, "type", "image_url");
+
+  // Nested image_url object
+  cJSON *imageUrlObj = cJSON_CreateObject();
+
+  String urlString = "data:image/png;base64," + image_data_str;
+  cJSON_AddStringToObject(imageUrlObj, "url", urlString.c_str());
+
+  cJSON_AddItemToObject(imageContent, "image_url", imageUrlObj);
+  cJSON_AddItemToArray(contentArray, imageContent);
+  // Print JSON
+  char *jsonString = cJSON_Print(root);
+
+  // free(jsonString);
+  Serial.println("Request JSON:");
+  Serial.println(jsonString);
+  Serial.print("JSON Size : ");
+  Serial.println(strlen(jsonString));
+  // int image_string_len = strlen(jsonString);
+    //Compute the variables to send image data
+  // if(image_string_len >= 2000)
+  // {
+  //   num_of_image_iterations = (image_string_len / 2000);
+  //   if((image_string_len % 2000) != 0)
+  //   {
+  //     remaining_image_len = (image_string_len % 2000);
+  //   }
+  // }
+  // else
+  // {
+  //   num_of_image_iterations = 0;
+  //   remaining_image_len = 0;
+  // }
+   
+  //  #ifdef test
+  //   // Use insecure for testing (replace later with proper root CA)
+  // client.setInsecure();
+  // //  client.setCACert(root_ca);  // ✅ use real certificate
+  // Serial.println("Connecting to api.openai.com ...");
+  // if (!client.connect("api.openai.com", 443)) {
+  //   return "❌ Connection failed";
+  // }
+  // Serial.println("Connected!");
+
+  //   // ---- HTTP request ----
+  // client.println("POST /v1/chat/completions HTTP/1.1");
+  // client.println("Host: api.openai.com");
+  // client.println("Authorization: Bearer " + openaiKey);
+  // client.println("Content-Type: application/json");
+  // client.println("Content-Length: " + String(strlen(jsonString)));
+  // client.println("Connection: close");
+  // client.println();
+ 
+  // client.print(jsonString);
+
+  //   if(num_of_image_iterations > 0)
+  // {
+  //   for(int i = 0; i < num_of_image_iterations; i ++)
+  //   {
+  //     client.write((uint8_t*)(jsonString + (i * 2000)), 2000);
+  //     delay(100);
+  //   }
+
+  //   if(remaining_image_len > 0)
+  //   {
+  //     client.write((uint8_t*)(jsonString + (num_of_image_iterations * 2000)), remaining_image_len);
+  //   }
+
+  // }
+  // else
+  // {
+  // client.write((uint8_t*)jsonString, image_string_len);  // binary audio
+  // }
+
+  // // Serial.println("428");
+
+  // // ---- Read response ----
+  // String response;
+  // unsigned long timeout = millis();
+  // while (client.connected() || client.available()) {
+  //   if (client.available()) {
+  //     response += client.readStringUntil('\n');
+  //     timeout = millis(); // reset watchdog
+  //   }
+  //   if (millis() - timeout > SERVER_RESP_TIMEOUT_MS) {  // 10s timeout
+  //     break;
+  //   }
+  // }
+  // Serial.println("exiting image transcription");
+
+  // client.stop();
+  // return response;
+  // #endif
+  // Free memory
+  // cJSON_Delete(root);
+  //Transmit Image_JSON 
+  HTTPClient http;
+  http.setTimeout(60000);
+  http.useHTTP10(true);
+  http.begin("https://api.openai.com/v1/" + endpoint);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + openaiKey);
+  int httpCode = http.POST(jsonString);
+  String response = "";
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.print("HTTP_ERROR : ");
+    Serial.println(httpCode);
+    log_e("HTTP_ERROR: %d", httpCode);
+  }else{
+    response = http.getString();
+    Serial.print("HTTP RESPONSE : ");
+    Serial.println(response);
+  }
+  //
+  http.end();
+
+  return response;
+
+}
+
+
 #ifdef to_be_done_later
 String parse_response(String input)
 {
