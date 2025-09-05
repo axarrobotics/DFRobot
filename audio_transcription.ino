@@ -11,12 +11,15 @@
 #include "ESP_I2S.h"
 #include "cJSON.h"
 #include <base64.h>
+#include <WebServer.h>
 #define BUTTON_PIN 0
 #define LED_PIN 3
 #define SAMPLE_RATE     (4000) // The sample rate is tested with OpenAI and selected. 
 #define DATA_PIN        (GPIO_NUM_39)
 #define CLOCK_PIN       (GPIO_NUM_38)
 
+int counter = 0;
+WebServer server(80);
 base64 base64_conv;
 //Other IMP MACROS
 #define SERVER_RESP_TIMEOUT_MS 40000 
@@ -27,9 +30,11 @@ uint8_t *wavBuffer = NULL;
 size_t wavBufferSize = 0; 
 
 // Replace with your credentials
-const char* ssid = "Test";
-const char* password = "Test123@";
-String openaiKey = "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";
+const char* sta_ssid = "Test";
+const char* sta_password = "Test123@";
+const char* ap_ssid = "ESP_ROBOT";
+const char* ap_password = "Robot123@";
+String openaiKey = "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";
 int num_of_audio_iterations = 0;
 int remaining_audio_len = 0;
 // int num_of_image_iterations = 0;
@@ -37,6 +42,12 @@ int remaining_audio_len = 0;
 String result;
 String audio_transcripted_txt;
 String image_answer_txt;
+
+//For Recording start and stop
+#define START_RECORDING 0
+#define STOP_RECORDING 1
+int recording_state = STOP_RECORDING;
+
 
   // uint8_t buffer[50000]; 
 
@@ -75,13 +86,16 @@ String image_answer_txt;
 // "-----END CERTIFICATE-----\n";
 // #endif
 
+
 void setup() {
   Serial.begin(115200);
     pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   audioInit();
   initCamera();
-  WiFi.begin(ssid, password);
+  WiFi.mode(WIFI_MODE_APSTA); //Set the device to operate in AP and STA modes simultaneously. 
+  WiFi.begin(sta_ssid, sta_password); //Begin the STA mode and establish connection. 
+  WiFi.softAP(ap_ssid, ap_password);  // Start the access point
 
   Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -90,29 +104,36 @@ void setup() {
   }
   Serial.println("\nWiFi connected");
   
+  //IP address of ESP32_AP 
+    IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+
+  //Set server configs and initiate it.
+    server.on("/audio_record", handle_ForRecording); //For audio_record page
+    server.on("/mode_change", handle_ModeChange); //For mode_change page
+  server.on("/record", handleRecord); // Handle record_button toggle
+  server.onNotFound(handle_NotFound);
+  server.begin();
+  Serial.println("HTTP server started");
+
   // imageAnswering("Describe this image for me");
   //  result = openAI_transcribe((uint8_t *)sample_wav, sample_wav_len);
   // Serial.println("=== OpenAI Response ===");
   // Serial.println(result);
 }
 
-void audioInit()
-{
-  I2S.setPinsPdmRx(CLOCK_PIN, DATA_PIN);
-  if (!I2S.begin(I2S_MODE_PDM_RX, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
-    Serial.println("Failed to initialize I2S PDM RX");
-  }
-}
-
 void loop() {
-    if (digitalRead(BUTTON_PIN) == LOW) {
+    server.handleClient();
+
+    if (START_RECORDING == recording_state) {
         if (!isRecording) {
           digitalWrite(LED_PIN, HIGH);
             startRecording();
         }
     } else {
         if (isRecording) {
-                    digitalWrite(LED_PIN, LOW);
+            digitalWrite(LED_PIN, LOW);
             stopRecording();
         }
     }
@@ -154,6 +175,85 @@ void loop() {
     Serial.println("Start recording...");
     isRecording = true;
 }
+
+//Handle RecordButtonToggle
+void handleRecord() {
+  if (server.hasArg("state")) {
+    String state = server.arg("state");  // read query parameter
+    Serial.println("Recording state: " + state);
+
+    if (state == "start") {
+      // do something when recording starts
+      recording_state = START_RECORDING;
+    } else if (state == "stop") {
+      // do something when recording stops
+      recording_state = STOP_RECORDING;
+    }
+  }
+  server.send(200, "text/plain", "OK");
+}
+
+
+
+void handle_ForRecording() {
+  counter++;
+  server.send(200, "text/html", recordingPageHTML());
+}
+
+void handle_NotFound() {
+  server.send(404, "text/plain", "Not found");
+}
+
+void handle_ModeChange() {
+  server.send(200, "text/plain", "Page under construction");
+}
+
+String recordingPageHTML() {
+  String str = "<!DOCTYPE html><html>";
+  str += "<head><meta charset=\"UTF-8\"><title>Recording Control</title>";
+  str += "<style>";
+  str += "body {font-family: Arial, sans-serif; text-align: center; padding-top: 50px;}";
+  str += "#recordBtn {background-color: #e74c3c; color: white; border: none; padding: 15px 30px;";
+  str += "font-size: 18px; border-radius: 8px; cursor: pointer; transition: background-color 0.3s;}";
+  str += "#recordBtn:hover {background-color: #c0392b;}";
+  str += "</style>";
+  str += "</head>";
+  str += "<body>";
+  str += "<h2>Recording Control</h2>";
+  str += "<button id=\"recordBtn\" onclick=\"toggleRecording()\">RECORDING_START</button>";
+  str += "<script>";
+  str += "let recording = false;";
+  str += "function toggleRecording() {";
+  str += "  const btn = document.getElementById('recordBtn');";
+  str += "  recording = !recording;";
+  str += "  if (recording) {";
+  str += "    btn.innerText = 'RECORDING_STOP';";
+  str += "    sendUpdate('start');";
+  str += "  } else {";
+  str += "    btn.innerText = 'RECORDING_START';";
+  str += "    sendUpdate('stop');";
+  str += "  }";
+  str += "}";
+  str += "function sendUpdate(state) {";
+  str += "  const xhr = new XMLHttpRequest();";
+  str += "  xhr.open('GET', '/record?state=' + state, true);";
+  str += "  xhr.send();";
+  str += "}";
+  str += "</script>";
+  str += "</body></html>";
+  return str;
+}
+
+// String modeChangeHTML
+
+void audioInit()
+{
+  I2S.setPinsPdmRx(CLOCK_PIN, DATA_PIN);
+  if (!I2S.begin(I2S_MODE_PDM_RX, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("Failed to initialize I2S PDM RX");
+  }
+}
+
 
 String parse_response_for_audio(String txt)
 {
@@ -211,9 +311,10 @@ void stopRecording() {
     Serial.println("Start speech to text! ");
  
   String txt = openAI_transcribe(wavBuffer, wavBufferSize);
-
+// Serial.println("312");
+// Serial.print(txt);
     free(wavBuffer);
-    if(txt!="Connection failed" || txt!=""){
+    if(txt!="Connection failed" && txt!=""){
         audio_transcripted_txt = parse_response_for_audio(txt);
         Serial.printf("SpeechToText Message: %s\n", audio_transcripted_txt.c_str());
         Serial.println("Start image Answering! ");
