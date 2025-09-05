@@ -12,13 +12,14 @@
 #include "cJSON.h"
 #include <base64.h>
 #include <WebServer.h>
+#include "Preferences.h"
 #define BUTTON_PIN 0
 #define LED_PIN 3
 #define SAMPLE_RATE     (4000) // The sample rate is tested with OpenAI and selected. 
 #define DATA_PIN        (GPIO_NUM_39)
 #define CLOCK_PIN       (GPIO_NUM_38)
 
-int counter = 0;
+// int counter = 0;
 WebServer server(80);
 base64 base64_conv;
 //Other IMP MACROS
@@ -47,6 +48,12 @@ String image_answer_txt;
 #define START_RECORDING 0
 #define STOP_RECORDING 1
 int recording_state = STOP_RECORDING;
+
+//For Mode Changes
+Preferences preferences;
+unsigned int mode;
+#define OPEN_AI_QA 1
+#define ESP_ROLL 0 
 
 
   // uint8_t buffer[50000]; 
@@ -89,6 +96,21 @@ int recording_state = STOP_RECORDING;
 
 void setup() {
   Serial.begin(115200);
+
+  //Load variable from NVS and check the firmware to run
+  preferences.begin("my-app", false);
+  mode = preferences.getUInt("mode", 0);
+    preferences.end();
+
+  if(mode == OPEN_AI_QA)
+  {
+     Serial.println("OPEN_AI_QA firmware running");
+  }
+  else
+  {
+    Serial.println("ESP_ROLL Robot firmware running");
+  }
+
     pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   audioInit();
@@ -113,7 +135,8 @@ void setup() {
     server.on("/audio_record", handle_ForRecording); //For audio_record page
     server.on("/mode_change", handle_ModeChange); //For mode_change page
   server.on("/record", handleRecord); // Handle record_button toggle
-  server.onNotFound(handle_NotFound);
+  server.on("/toggle", handleMode);
+  // server.onNotFound(handle_NotFound);
   server.begin();
   Serial.println("HTTP server started");
 
@@ -193,10 +216,35 @@ void handleRecord() {
   server.send(200, "text/plain", "OK");
 }
 
-
+//Handle ModeButtonToggle
+void handleMode() {
+  if (server.hasArg("mode")) {
+    String mode = server.arg("mode");  // read query parameter
+    Serial.println("Toggle state: " + mode);
+    int value = 0;
+    if(mode == "OPEN_AI_QA")
+    {
+      Serial.println("OPEN_AI_QA firmware set");
+      value = OPEN_AI_QA;
+    }
+    else
+    {
+      Serial.println("ESP_ROLL firmware set");
+      value = ESP_ROLL;
+    }
+     
+     //Set the value to NVS
+    preferences.begin("my-app", false);
+  preferences.putUInt("mode", value);
+    preferences.end();
+  server.send(200, "text/plain", "Restarting Device");
+  delay(3000);
+  esp_restart();
+}
+}
 
 void handle_ForRecording() {
-  counter++;
+  // counter++;
   server.send(200, "text/html", recordingPageHTML());
 }
 
@@ -205,7 +253,7 @@ void handle_NotFound() {
 }
 
 void handle_ModeChange() {
-  server.send(200, "text/plain", "Page under construction");
+  server.send(200, "text/html", modeChangeHTML());
 }
 
 String recordingPageHTML() {
@@ -244,7 +292,52 @@ String recordingPageHTML() {
   return str;
 }
 
-// String modeChangeHTML
+String modeChangeHTML() {
+  String str = "<!DOCTYPE html><html>";
+  str += "<head><meta charset=\"UTF-8\"><title>ESP32 Mode Toggle</title>";
+  str += "<style>";
+  str += "body {font-family: Arial, sans-serif; text-align: center; padding-top: 50px;}";
+  str += ".switch {position: relative; display: inline-block; width: 60px; height: 34px;}";
+  str += ".switch input {opacity: 0; width: 0; height: 0;}";
+  str += ".slider {position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;";
+  str += "background-color: #ccc; transition: .4s; border-radius: 34px;}";
+  str += ".slider:before {position: absolute; content: ''; height: 26px; width: 26px; left: 4px; bottom: 4px;";
+  str += "background-color: white; transition: .4s; border-radius: 50%;}";
+  str += "input:checked + .slider {background-color: #4CAF50;}";
+  str += "input:checked + .slider:before {transform: translateX(26px);}";
+  str += "</style>";
+  str += "</head>";
+  str += "<body>";
+  str += "<h2>ESP32 Mode Toggle</h2>";
+  str += "<label class=\"switch\">";
+
+  if(mode == OPEN_AI_QA)
+  str += "<input type=\"checkbox\" id=\"modeSwitch\" onchange=\"toggleMode()\"checked>";
+  else
+  str += "<input type=\"checkbox\" id=\"modeSwitch\" onchange=\"toggleMode()\">";
+
+  str += "<span class=\"slider\"></span>";
+  str += "</label>";
+  if(mode == OPEN_AI_QA)
+  str += "<p id=\"status\">Mode: OPEN_AI_QA</p>";
+  else
+  str += "<p id=\"status\">Mode: ESP_ROLL</p>";
+ 
+  str += "<script>";
+  str += "function toggleMode() {";
+  str += " var checkBox = document.getElementById('modeSwitch');";
+  str += " var statusText = document.getElementById('status');";
+  str += " var mode = checkBox.checked ? 'OPEN_AI_QA' : 'ESP_ROLL';";
+  str += " statusText.innerHTML = 'Mode: ' + mode;";
+  str += " var xhr = new XMLHttpRequest();";
+  str += " xhr.open('GET', '/toggle?mode=' + mode, true);";
+  str += " xhr.send();";
+  str += "}";
+  str += "</script>";
+  str += "</body></html>";
+  return str;
+}
+
 
 void audioInit()
 {
